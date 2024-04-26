@@ -44,6 +44,18 @@ export const handler: ServerlessFunctionSignature<MyContext, MyEvent> =
       return callback(null, response);
     }
 
+    // Ignore events for recordings that aren't completed
+    if (
+      !event.attributes ||
+      !event.attributes["phone"] ||
+      !event.attributes["worker_friendly_name"]
+    ) {
+      console.log(`Missing phone or worker_friendly_name`);
+      response.setBody({ status: "Missing required params" });
+      response.setStatusCode(400);
+      return callback(null, response);
+    }
+
     try {
       // Create task
       let client = context.getTwilioClient();

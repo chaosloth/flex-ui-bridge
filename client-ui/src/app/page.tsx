@@ -9,25 +9,35 @@ import { Form, FormControl } from "@twilio-paste/core/form";
 import { Heading } from "@twilio-paste/core/heading";
 import { Label } from "@twilio-paste/core/label";
 import { useState } from "react";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+
+export enum Status {
+  READY = "Ready",
+  SUBMITTING = "Submitting",
+  CREATED = "Created",
+  ERROR = "Error",
+}
 
 export default function Home() {
   const params = useSearchParams();
   const phoneNumber = params.get("phoneNumber");
+  const worker = params.get("worker");
   console.log(`params: ${params}`);
 
   console.log("Target phone number", phoneNumber);
   const [phone, setPhone] = useState(phoneNumber || "");
-  const [callStatus, setCallStatus] = useState("");
+  const [taskStatus, setTaskStatus] = useState<Status>(Status.READY);
+  const [worker_friendly_name, setWorkerFriendlyName] = useState(worker || "");
 
   const handleDial = () => {
     if (!phone || phone === "") return;
+    if (!worker_friendly_name || worker_friendly_name === "") return;
 
     // Logic to initiate the phone call
     console.log(`Dialing ${phone}`);
 
-    // Example: Update the call status
-    setCallStatus("Sending...");
+    // Update the call status
+    setTaskStatus(Status.SUBMITTING);
 
     // Here, you'd have logic to track the actual call status
     // and update it accordingly
@@ -38,15 +48,30 @@ export default function Home() {
       },
       body: JSON.stringify({
         task_type: "lead",
-        attributes: { phone },
+        attributes: { phone, worker_friendly_name },
       }),
     })
-      .then(() => {
-        setCallStatus("Dialing...");
+      .then(() => setTaskStatus(Status.CREATED))
+      .catch((err) => {
+        console.error("Error creating task", err);
+        setTaskStatus(Status.ERROR);
       })
-      .catch(() => {
-        setCallStatus("Something went wrong...");
-      });
+      .finally(() => setTimeout(() => setTaskStatus(Status.READY), 5000));
+  };
+
+  const getBadgeVariantForStatus = (status: Status) => {
+    switch (status) {
+      case Status.READY:
+        return "neutral";
+      case Status.CREATED:
+        return "success";
+      case Status.ERROR:
+        return "error";
+      case Status.SUBMITTING:
+        return "new";
+      default:
+        return "neutral";
+    }
   };
 
   return (
@@ -62,7 +87,16 @@ export default function Home() {
             >
               Click to dial in Flex
             </Heading>
-
+            <FormControl>
+              <Label htmlFor={"worker-name"}>Worker Name</Label>
+              <Input
+                type="text"
+                placeholder="Enter worker friendly name"
+                value={worker_friendly_name}
+                onChange={(e) => setWorkerFriendlyName(e.target.value)}
+                onKeyPress={(e) => e.key === "Enter" && handleDial()}
+              />
+            </FormControl>
             <FormControl>
               <Label htmlFor={"phone-number"}>Phone Number</Label>
               <Input
@@ -79,11 +113,9 @@ export default function Home() {
               </Button>
             </FormControl>
             <FormControl>
-              {callStatus && (
-                <Badge variant="default" as="span">
-                  {callStatus}
-                </Badge>
-              )}
+              <Badge variant={getBadgeVariantForStatus(taskStatus)} as="span">
+                {taskStatus}
+              </Badge>
             </FormControl>
           </Form>
         </Card>
